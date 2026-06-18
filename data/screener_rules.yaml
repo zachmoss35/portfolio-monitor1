@@ -1,0 +1,59 @@
+# Portfolio screener rules — evaluated per ticker each run.
+# Operators: gt, gte, lt, lte, eq, between, in, not_in
+
+rules:
+  - name: daily_drop_alert
+    description: Flag tickers down more than 3% today
+    field: daily_change_pct
+    operator: lt
+    value: -3.0
+    severity: watch
+
+  - name: daily_surge_alert
+    description: Flag tickers up more than 5% today
+    field: daily_change_pct
+    operator: gt
+    value: 5.0
+    severity: watch
+
+  - name: high_pe_warning
+    description: P/E above 40 may indicate overvaluation
+    field: pe_ratio
+    operator: gt
+    value: 40
+    severity: watch
+
+  - name: low_pe_opportunity
+    description: P/E below 15 with positive earnings
+    field: pe_ratio
+    operator: lt
+    value: 15
+    severity: buy
+
+  - name: volume_spike
+    description: Volume more than 2x average
+    field: volume_ratio
+    operator: gt
+    value: 2.0
+    severity: watch
+
+  - name: earnings_this_week
+    description: Earnings within the next 7 days
+    field: days_to_earnings
+    operator: between
+    value: [0, 7]
+    severity: watch
+
+  - name: negative_momentum
+    description: Down more than 10% over 30 days
+    field: change_30d_pct
+    operator: lt
+    value: -10.0
+    severity: sell
+
+  - name: strong_momentum
+    description: Up more than 15% over 30 days
+    field: change_30d_pct
+    operator: gt
+    value: 15.0
+    severity: buy

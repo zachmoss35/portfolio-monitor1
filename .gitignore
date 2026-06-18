@@ -1,0 +1,12 @@
+.env
+__pycache__/
+*.pyc
+.pytest_cache/
+.venv/
+venv/
+reports/*.md
+!.gitkeep
+logs/*.log
+logs/last_success.txt
+logs/last_error.txt
+!.gitkeep
