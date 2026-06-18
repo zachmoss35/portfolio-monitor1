@@ -10,3 +10,5 @@ logs/*.log
 logs/last_success.txt
 logs/last_error.txt
 !.gitkeep
+snapshots/*.json
+!.gitkeep

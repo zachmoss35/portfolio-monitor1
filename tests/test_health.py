@@ -25,10 +25,16 @@ def _config(tmp_path: Path) -> Config:
         report_timezone="America/New_York",
         email_hour=6,
         email_minute=0,
+        openai_api_key=None,
+        use_ai_summary=False,
+        max_news_per_ticker=5,
+        earnings_lookahead_days=30,
+        material_move_threshold=0.05,
         portfolio_path=DATA_DIR / "portfolio.csv",
         screener_path=DATA_DIR / "screener_rules.yaml",
         reports_dir=tmp_path,
         logs_dir=tmp_path,
+        snapshots_dir=tmp_path / "snapshots",
     )
 
 

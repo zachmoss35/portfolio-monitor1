@@ -53,12 +53,14 @@ def test_generate_report_contains_sections():
     )
     md = generate_report(report)
     assert "# Portfolio Daily Report" in md
+    assert "## Executive Summary" in md
+    assert "## What Changed Since Yesterday?" in md
     assert "## Portfolio Summary" in md
     assert "## Action Flags" in md
     assert "## Portfolio Company Updates" in md
     assert "## Valuation Metrics" in md
     assert "## Earnings Calendar" in md
-    assert "## New SEC Filings" in md
+    assert "## SEC Filings" in md
     assert "## Material News" in md
     assert "## Screener Results" in md
     assert "AAPL" in md

@@ -1,16 +1,20 @@
 # Portfolio Monitor
 
-A Python agent that monitors your stock portfolio daily — pulling prices, valuations, earnings, news, and SEC filings, running custom screeners, and emailing a Markdown report every weekday morning.
+A Python buy-side research assistant that monitors your stock portfolio daily — pulling prices, valuations, earnings, news, and SEC filings, running custom screeners, and emailing a Markdown report every weekday morning.
 
 Designed for **local development** and **Linux VPS deployment** via cron.
 
 ## Features
 
-- **Portfolio tracking** — reads holdings from `data/portfolio.csv`
-- **Market data** — daily price change, market cap, volume, 30-day momentum, valuation ratios (P/E, PEG, P/B, P/S, EV/EBITDA)
-- **Earnings calendar** — next earnings date and days until report
-- **News** — recent headlines with material-news detection (Yahoo Finance + optional NewsAPI)
-- **SEC filings** — recent 8-K, 10-K, 10-Q, and other material filings from EDGAR
+- **Portfolio tracking** — reads holdings from `data/portfolio.csv` (legacy and extended schema)
+- **Executive summary** — top positive/negative developments, companies needing review, earnings, major movers
+- **Day-over-day changes** — compares today's data to the prior snapshot
+- **Market data** — daily price change, market cap, volume, 30-day momentum, valuation ratios
+- **Valuation flags** — expensive growth, cheap value, multiple expansion/compression, missing data
+- **Earnings calendar** — next/last earnings date, days until report, 14/30-day flags
+- **News** — relevance-filtered headlines with material-news detection (Yahoo Finance + optional NewsAPI)
+- **SEC filings** — classified 10-K, 10-Q, 8-K, S-1, 424B, Form 4, DEF 14A with priority and summaries
+- **AI analyst summaries** — optional OpenAI-powered briefs (disabled without API key)
 - **Screeners** — configurable rules in `data/screener_rules.yaml`
 - **Action flags** — buy / watch / sell / hold per ticker
 - **Daily reports** — saved to `reports/YYYY-MM-DD.md`
@@ -46,6 +50,11 @@ Edit `.env` with your SMTP credentials and optional API keys:
 | `EMAIL_TO` | For email | Recipient address |
 | `NEWS_API_KEY` | Optional | [NewsAPI](https://newsapi.org) key for richer news |
 | `SEC_USER_AGENT` | Recommended | Your name + email (required by SEC EDGAR) |
+| `OPENAI_API_KEY` | Optional | OpenAI key for AI analyst summaries |
+| `USE_AI_SUMMARY` | Optional | Enable AI summaries (`true`/`false`, default: `false`) |
+| `MAX_NEWS_PER_TICKER` | Optional | Max news items per ticker (default: `5`) |
+| `EARNINGS_LOOKAHEAD_DAYS` | Optional | Earnings calendar window (default: `30`) |
+| `MATERIAL_MOVE_THRESHOLD` | Optional | Price move threshold for executive summary (default: `0.05` = 5%) |
 | `TZ` | VPS | Timezone (default: `America/New_York`) |
 | `REPORT_TIMEZONE` | Optional | Timezone for scheduler (default: `America/New_York`) |
 | `EMAIL_HOUR` | Optional | Hour to send (default: `6`) |
@@ -53,7 +62,15 @@ Edit `.env` with your SMTP credentials and optional API keys:
 
 ### 3. Set up your portfolio
 
-Edit `data/portfolio.csv`:
+**Extended schema** (optional metadata columns):
+
+```csv
+ticker,shares,cost_basis,company,sector,priority,notes
+AAPL,50,175.00,Apple Inc.,Technology,high,Core tech holding
+MSFT,30,380.00,Microsoft Corp.,Technology,high,Cloud & AI exposure
+```
+
+**Legacy schema** (still supported):
 
 ```csv
 ticker,shares,cost_basis,notes
@@ -99,7 +116,7 @@ git clone <your-repo-url> portfolio-monitor
 cd portfolio-monitor
 
 bash deploy/setup_server.sh     # install Python, venv, deps, create dirs
-nano .env                       # SMTP + SEC_USER_AGENT
+nano .env                       # SMTP + SEC_USER_AGENT + optional OPENAI_API_KEY
 nano data/portfolio.csv         # your holdings
 
 bash deploy/run_daily.sh        # manual test
@@ -108,7 +125,7 @@ python -m portfolio_agent.main health
 bash deploy/install_cron.sh     # weekday 6 AM cron job
 ```
 
-See [deploy/README.md](deploy/README.md) for full VPS setup, timezone config, and troubleshooting.
+See [deploy/README.md](deploy/README.md) for full VPS setup, Lightsail updates, and troubleshooting.
 
 ### Cron schedule
 
@@ -128,6 +145,7 @@ This runs Monday–Friday at 6:00 AM when the server timezone is `America/New_Yo
 | `logs/last_success.txt` | Timestamp of last successful run |
 | `logs/last_error.txt` | Timestamp of last failed run |
 | `reports/YYYY-MM-DD.md` | Generated reports |
+| `snapshots/YYYY-MM-DD.json` | Daily data snapshots for change tracking |
 
 ```bash
 python -m portfolio_agent.main health
@@ -151,10 +169,11 @@ portfolio-monitor/
 │   ├── models.py              # Data classes
 │   ├── portfolio.py           # CSV reader
 │   ├── health.py              # Health check CLI
+│   ├── analysis/              # Executive summary, changes, AI
 │   ├── data/
 │   │   ├── market_data.py     # Yahoo Finance prices & valuation
 │   │   ├── earnings.py        # Earnings calendar
-│   │   ├── news.py            # News fetching
+│   │   ├── news.py            # News fetching & relevance filtering
 │   │   └── sec_filings.py     # SEC EDGAR filings
 │   ├── screener.py            # Rule engine
 │   ├── flags.py               # Buy/watch/sell logic
@@ -164,6 +183,7 @@ portfolio-monitor/
 │   ├── scheduler.py           # Local dev scheduler daemon
 │   └── main.py                # CLI entry point
 ├── reports/                   # Generated daily reports
+├── snapshots/                 # JSON snapshots for day-over-day comparison
 ├── logs/                      # Run logs and health markers
 ├── tests/                     # Unit tests
 ├── requirements.txt
@@ -198,6 +218,17 @@ SEC_USER_AGENT=YourName your-email@example.com
 - Verify SMTP credentials in `.env`
 - For Gmail, use an [App Password](https://support.google.com/accounts/answer/185833)
 - Test: `python -m portfolio_agent.main email -v`
+
+### AI summaries not appearing
+
+- Set `OPENAI_API_KEY` in `.env`
+- Set `USE_AI_SUMMARY=true`
+- Without a key, the agent runs normally without AI sections
+
+### No "What changed" section
+
+- Day-over-day changes require at least one prior snapshot in `snapshots/`
+- Run the agent on consecutive days, or manually keep prior JSON snapshots
 
 ### Cron not running
 

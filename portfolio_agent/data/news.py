@@ -9,6 +9,7 @@ import requests
 import yfinance as yf
 
 from portfolio_agent.models import NewsItem
+from portfolio_agent.utils.text_match import is_article_relevant
 
 logger = logging.getLogger(__name__)
 
@@ -20,18 +21,43 @@ MATERIAL_KEYWORDS = [
 ]
 
 
+def filter_relevant_news(
+    items: list[NewsItem],
+    ticker: str,
+    company_name: str = "",
+    aliases: list[str] | None = None,
+) -> list[NewsItem]:
+    """Keep only articles that mention the ticker, company name, or a known alias."""
+    relevant: list[NewsItem] = []
+    for item in items:
+        if is_article_relevant(
+            title=item.title,
+            summary=item.summary,
+            description=item.summary,
+            url=item.link,
+            ticker=ticker,
+            company_name=company_name,
+            aliases=aliases,
+        ):
+            relevant.append(item)
+    return relevant
+
+
 def fetch_news(
     ticker: str,
     news_api_key: str | None = None,
     max_items: int = 5,
     days_back: int = 3,
+    company_name: str = "",
+    aliases: list[str] | None = None,
 ) -> list[NewsItem]:
     """Fetch recent news, preferring NewsAPI when a key is provided."""
     if news_api_key:
-        items = _fetch_from_newsapi(ticker, news_api_key, max_items, days_back)
+        items = _fetch_from_newsapi(ticker, news_api_key, max_items * 2, days_back)
         if items:
-            return items
-    return _fetch_from_yahoo(ticker, max_items)
+            return filter_relevant_news(items, ticker, company_name, aliases)[:max_items]
+    items = _fetch_from_yahoo(ticker, max_items * 2)
+    return filter_relevant_news(items, ticker, company_name, aliases)[:max_items]
 
 
 def _fetch_from_yahoo(ticker: str, max_items: int) -> list[NewsItem]:
@@ -64,6 +90,7 @@ def _fetch_from_yahoo(ticker: str, max_items: int) -> list[NewsItem]:
             link = content["canonicalUrl"].get("url", "")
         link = link or entry.get("link", "")
 
+        summary = content.get("summary", "") or content.get("description", "") or ""
         title_lower = title.lower()
         is_material = any(kw in title_lower for kw in MATERIAL_KEYWORDS)
 
@@ -74,6 +101,7 @@ def _fetch_from_yahoo(ticker: str, max_items: int) -> list[NewsItem]:
                 publisher=content.get("provider", {}).get("displayName", "Yahoo Finance"),
                 link=link,
                 published=pub_date,
+                summary=summary,
                 is_material=is_material,
             )
         )
@@ -114,6 +142,7 @@ def _fetch_from_newsapi(
                 )
             except ValueError:
                 pass
+        description = article.get("description", "") or ""
         title_lower = title.lower()
         is_material = any(kw in title_lower for kw in MATERIAL_KEYWORDS)
         items.append(
@@ -123,7 +152,7 @@ def _fetch_from_newsapi(
                 publisher=article.get("source", {}).get("name", "NewsAPI"),
                 link=article.get("url", ""),
                 published=pub_date,
-                summary=article.get("description", "") or "",
+                summary=description,
                 is_material=is_material,
             )
         )

@@ -42,7 +42,7 @@ pip install --upgrade pip
 pip install -r requirements.txt
 
 echo "==> Creating data directories..."
-mkdir -p reports logs data
+mkdir -p reports logs data snapshots
 
 if [[ ! -f .env ]]; then
   cp .env.example .env

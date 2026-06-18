@@ -12,6 +12,14 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 DATA_DIR = PROJECT_ROOT / "data"
 REPORTS_DIR = PROJECT_ROOT / "reports"
 LOGS_DIR = PROJECT_ROOT / "logs"
+SNAPSHOTS_DIR = PROJECT_ROOT / "snapshots"
+
+
+def _env_bool(name: str, default: bool) -> bool:
+    raw = os.getenv(name)
+    if raw is None:
+        return default
+    return raw.strip().lower() in {"1", "true", "yes", "on"}
 
 
 @dataclass(frozen=True)
@@ -27,10 +35,16 @@ class Config:
     report_timezone: str
     email_hour: int
     email_minute: int
+    openai_api_key: str | None
+    use_ai_summary: bool
+    max_news_per_ticker: int
+    earnings_lookahead_days: int
+    material_move_threshold: float
     portfolio_path: Path
     screener_path: Path
     reports_dir: Path
     logs_dir: Path
+    snapshots_dir: Path
 
 
 def load_config(env_path: Path | None = None) -> Config:
@@ -39,6 +53,9 @@ def load_config(env_path: Path | None = None) -> Config:
 
     timezone = os.getenv("TZ") or os.getenv("REPORT_TIMEZONE", "America/New_York")
     os.environ.setdefault("TZ", timezone)
+
+    openai_key = os.getenv("OPENAI_API_KEY") or None
+    use_ai = _env_bool("USE_AI_SUMMARY", default=bool(openai_key))
 
     return Config(
         smtp_host=os.getenv("SMTP_HOST", "smtp.gmail.com"),
@@ -54,8 +71,14 @@ def load_config(env_path: Path | None = None) -> Config:
         report_timezone=os.getenv("REPORT_TIMEZONE", timezone),
         email_hour=int(os.getenv("EMAIL_HOUR", "6")),
         email_minute=int(os.getenv("EMAIL_MINUTE", "0")),
+        openai_api_key=openai_key,
+        use_ai_summary=use_ai and bool(openai_key),
+        max_news_per_ticker=int(os.getenv("MAX_NEWS_PER_TICKER", "5")),
+        earnings_lookahead_days=int(os.getenv("EARNINGS_LOOKAHEAD_DAYS", "30")),
+        material_move_threshold=float(os.getenv("MATERIAL_MOVE_THRESHOLD", "0.05")),
         portfolio_path=DATA_DIR / "portfolio.csv",
         screener_path=DATA_DIR / "screener_rules.yaml",
         reports_dir=REPORTS_DIR,
         logs_dir=LOGS_DIR,
+        snapshots_dir=SNAPSHOTS_DIR,
     )
