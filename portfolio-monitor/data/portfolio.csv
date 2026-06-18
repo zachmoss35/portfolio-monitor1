@@ -1,0 +1,6 @@
+ticker,shares,cost_basis,notes
+AAPL,50,175.00,Core tech holding
+MSFT,30,380.00,Cloud & AI exposure
+GOOGL,20,140.00,Search & AI
+NVDA,15,450.00,Semiconductor growth
+JPM,25,180.00,Financials

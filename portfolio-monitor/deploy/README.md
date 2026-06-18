@@ -1,0 +1,147 @@
+# VPS Deployment Guide
+
+Deploy portfolio-monitor on a Linux VPS to generate and email reports every weekday at **6:00 AM Eastern**.
+
+## Recommended providers
+
+| Provider | Notes |
+|----------|-------|
+| [DigitalOcean](https://www.digitalocean.com/) | Simple droplets, good docs, $6/mo tier is enough |
+| [Hetzner](https://www.hetzner.com/) | Low cost EU/US VPS, great value |
+| [AWS Lightsail](https://aws.amazon.com/lightsail/) | Fixed-price instances, easy if you already use AWS |
+
+Minimum spec: **1 vCPU, 1 GB RAM, Ubuntu 22.04+**. The app is lightweight.
+
+## Quick deploy
+
+```bash
+# On the VPS
+git clone <your-repo-url> portfolio-monitor
+cd portfolio-monitor
+
+bash deploy/setup_server.sh    # install deps, venv, dirs
+nano .env                      # SMTP + SEC_USER_AGENT
+nano data/portfolio.csv        # your holdings
+
+bash deploy/run_daily.sh       # manual test
+python -m portfolio_agent.main health
+
+bash deploy/install_cron.sh    # install weekday 6 AM cron
+```
+
+## Timezone
+
+The cron job fires at **6:00 AM server local time**. `setup_server.sh` sets the server to `America/New_York`.
+
+Verify:
+
+```bash
+timedatectl
+# or
+date
+```
+
+If you cannot change the server timezone, set `TZ=America/New_York` in `.env` and adjust the cron hour manually. For example, a UTC server would need `0 11 * * 1-5` during EST (UTC-5).
+
+## Scripts
+
+| Script | Purpose |
+|--------|---------|
+| `setup_server.sh` | One-time VPS bootstrap: Python, venv, pip, git, dirs |
+| `run_daily.sh` | Run report + email, append to `logs/daily.log`, write health markers |
+| `install_cron.sh` | Install `0 6 * * 1-5 bash deploy/run_daily.sh` |
+
+## Logs and health
+
+| File | Meaning |
+|------|---------|
+| `logs/daily.log` | Full stdout/stderr from each cron run |
+| `logs/last_success.txt` | ISO timestamp of last successful run |
+| `logs/last_error.txt` | ISO timestamp + exit code of last failure |
+| `reports/YYYY-MM-DD.md` | Generated daily reports |
+
+Check status:
+
+```bash
+python -m portfolio_agent.main health
+tail -50 logs/daily.log
+```
+
+## Manual test commands
+
+```bash
+source .venv/bin/activate
+
+# Generate report only (no email)
+python -m portfolio_agent.main run
+
+# Generate + email (same as cron)
+python -m portfolio_agent.main email
+
+# Full cron simulation
+bash deploy/run_daily.sh
+
+# Health check
+python -m portfolio_agent.main health
+```
+
+## Troubleshooting
+
+### Yahoo Finance failures
+
+Yahoo Finance can rate-limit or block VPS IPs.
+
+- Check `logs/daily.log` for `curl` or `ProxyError` messages
+- Retry manually: `python -m portfolio_agent.main run -v`
+- Ensure outbound HTTPS (port 443) is open
+- If blocked, try a different VPS provider/region or add retries later
+
+### SEC EDGAR 403
+
+SEC requires a valid `SEC_USER_AGENT` in `.env`:
+
+```
+SEC_USER_AGENT=YourName your-email@example.com
+```
+
+### Email not sending
+
+- Verify SMTP credentials in `.env`
+- For Gmail, use an [App Password](https://support.google.com/accounts/answer/185833)
+- Test: `python -m portfolio_agent.main email -v`
+- Check firewall allows outbound port 587
+
+### Cron not running
+
+```bash
+crontab -l                          # verify entry exists
+grep CRON /var/log/syslog           # Ubuntu cron logs
+bash deploy/run_daily.sh            # test script directly
+```
+
+### Wrong run time
+
+```bash
+timedatectl                         # confirm timezone
+cat .env | grep TZ                  # confirm TZ=America/New_York
+```
+
+## Updating
+
+```bash
+cd portfolio-monitor
+git pull
+source .venv/bin/activate
+pip install -r requirements.txt
+bash deploy/run_daily.sh            # verify after update
+```
+
+## macOS / local dev
+
+The built-in Python scheduler still works locally:
+
+```bash
+python -m portfolio_agent.main schedule
+```
+
+For production, prefer **cron on a VPS** over the long-running scheduler daemon.
