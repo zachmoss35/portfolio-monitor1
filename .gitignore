@@ -12,3 +12,6 @@ logs/last_error.txt
 !.gitkeep
 snapshots/*.json
 !.gitkeep
+.DS_Store
+portfolio-mon/
+portfolio-monitor1/
